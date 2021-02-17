@@ -1,11 +1,14 @@
-#pragma once
+#ifndef SPLINEVIEW_H
+#define SPLINEVIEW_H
 
-#include "Spline.h"
-#include "History.h"
-
+#include "spline.h"
+#include "history.h"
+#include <qmath.h>
 #include <QWidget>
 #include <QColor>
+#include <QMouseEvent>
 
+// interface
 class SplineView : public QWidget
 {
     Q_OBJECT
@@ -16,22 +19,23 @@ public slots:
     void undo();
     void redo();
 
-    const Spline & getSpline() const;
-    void setSpline(const Spline & spline);
+    const Spline& getSpline() const;
+    void setSpline(const Spline& spline);
 
-    void updateSelectedKnot(Spline::Knot knot);
+    void updateSelectedDot(Spline::dot dot);
 
 signals:
-    void knotSelected(Spline::Knot knot);
-    void knotDeselected();
+    void dotSelected(Spline::dot dot);
+    void dotDeselected();
 
 protected:
-    void paintEvent(QPaintEvent *);
-    void mouseMoveEvent(QMouseEvent * event);
-    void mousePressEvent(QMouseEvent * event);
-    void mouseReleaseEvent(QMouseEvent * event);
-    void keyPressEvent(QKeyEvent * event);
-    void keyReleaseEvent(QKeyEvent * event);
+    void paintEvent(QPaintEvent*) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
 
 private:
     void deselect();
@@ -41,16 +45,15 @@ private:
     Spline spline;
     History history;
 
-    bool movingKnot = false;
-    int hotIndex = -1; // none
-    int selectedIndex = -1; // none
-    int insertIndex = -1; // none
+    bool movingDot = false;
+    int hotIndex = -1;
+    int selectedIndex = -1;
+    int insertIndex = -1;
+    double zoomIndex = 1;
+    int horShift = 0;
+    int verShift = 0;
     QPointF insertPos;
 
-    QColor backgroundColor = QColor(32, 32, 32);
-    QColor gridColor = QColor(128, 128, 128, 64);
-    QColor splineColor = QColor(182, 219, 73);
-
-    static const int HOT_KNOT_RADIUS = 10;
+    const int HOT_DOT_RADIUS = 10;
 };
-
+#endif

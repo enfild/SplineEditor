@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SPLINE_H
+#define SPLINE_H
 
 #include <QPointF>
 #include <QVector>
@@ -6,51 +7,54 @@
 class Spline
 {
 public:
-    struct Knot : public QPointF
+    struct dot : public QPointF
     {
-        Knot(QPointF pos) :
-            QPointF(pos)
-        {}
+        dot(QPointF pos) : QPointF(pos)
+        {
 
-        Knot(qreal x = 0.0f, qreal y = 0.0f) :
-            QPointF(x, y)
-        {}
+        }
 
-        Knot(qreal x, qreal y, float t, float b, float c) :
+        dot(qreal x = 0.0f, qreal y = 0.0f) :QPointF(x, y)
+        {
+
+        }
+
+        dot(qreal x, qreal y, float tension, float bias, float continuity) :
             QPointF(x, y),
-            t(t),
-            b(b),
-            c(c)
-        {}
+            tension(tension),
+            bias(bias),
+            continuity(continuity)
+        {
 
-        float t = 0.0f; // tension
-        float b = 0.0f; // bias
-        float c = 0.0f; // continuity
+        }
+
+        float tension = 0.0f;
+        float bias = 0.0f;
+        float continuity = 0.0f;
     };
 
     Spline();
 
-    void add(const Knot &knot);
-    void insert(int i, const Knot &knot);
-    void replace(int i, const Knot &knot);
+    void add(const dot &dot);
+    void insert(int i, const dot &dot);
+    void replace(int i, const dot &dot);
     void remove(int i);
 
     int size() const;
 
-    const Knot & getKnot(int index) const;
-    const QVector<Knot> & getKnots() const;
+    const dot & getDot(int index) const;
+    const QVector<dot> & getDots() const;
 
-    /*
-     * @return closest knot index or -1 if spline is empty
-     */
     int findClosest(QPointF pos, qreal & distance) const;
 
-    QVector<QPointF> getCurve() const;
+    QVector<QPointF> getCurve();
 
-    static void interpolate(QVector<QPointF> & curve, const QVector<Knot> & knots);
+    static void interpolate(QVector<QPointF> & curve, const QVector<dot> & dots);
 
 private:
-    QVector<Knot> knots;
-    mutable QVector<QPointF> curve;
-    mutable bool dirty = false;
+    bool dirty = false;
+    QVector<dot> dots;
+    QVector<QPointF> curve;
+
 };
+#endif

@@ -5,60 +5,64 @@ Spline::Spline()
 {
 }
 
-void Spline::add(const Spline::Knot &knot)
+void Spline::add(const Spline::dot &dot)
 {
-    knots.push_back(knot);
+    dots.push_back(dot);
     dirty = true;
 }
 
-void Spline::insert(int i, const Spline::Knot &knot)
+void Spline::insert(int i, const Spline::dot &dot)
 {
-    knots.insert(i, knot);
+    dots.insert(i, dot);
     dirty = true;
 }
 
-void Spline::replace(int i, const Spline::Knot &knot)
+void Spline::replace(int i, const Spline::dot &dot)
 {
-    if(i >= knots.size()) return;
-    knots[i] = knot;
+    if(i >= dots.size()){
+        return;}
+    dots[i] = dot;
     dirty = true;
 }
 
 void Spline::remove(int i)
 {
-    knots.erase(knots.begin() + i);
+    dots.erase(dots.begin() + i);
     dirty = true;
 }
 
 int Spline::size() const
 {
-    return knots.size();
+    return dots.size();
 }
 
-const Spline::Knot &Spline::getKnot(int i) const
+const Spline::dot &Spline::getDot(int i) const
 {
-    return knots[i];
+    return dots[i];
 }
 
-const QVector<Spline::Knot> &Spline::getKnots() const
+const QVector<Spline::dot> &Spline::getDots() const
 {
-    return knots;
+    return dots;
 }
 
 int Spline::findClosest(QPointF point, qreal & distance) const
 {
-    if(knots.isEmpty())
+    if(dots.isEmpty())
     {
         return -1;
     }
 
     int closestIndex = 0;
-    distance = (point - knots[0]).manhattanLength();
 
-    for(int i = 1; i < knots.size(); ++i)
+    QPointF diff = point - dots[0];
+    distance = qAbs(diff.x())+qAbs(diff.y());
+
+    for(int i = 1; i < dots.size(); ++i)
     {
-        const Knot & knot = knots.at(i);
-        qreal newDistance = (point - knot).manhattanLength();
+        const dot & dot = dots.at(i);
+        diff = point - dot;
+        qreal newDistance = qAbs(diff.x())+qAbs(diff.y());
         if(newDistance < distance)
         {
             distance = newDistance;
@@ -69,46 +73,46 @@ int Spline::findClosest(QPointF point, qreal & distance) const
     return closestIndex;
 }
 
-QVector<QPointF> Spline::getCurve() const
+QVector<QPointF> Spline::getCurve()
 {
     if(dirty)
     {
-        interpolate(curve, knots);
+        interpolate(curve, dots);
         dirty = false;
     }
 
     return curve;
 }
 
-void Spline::interpolate(QVector<QPointF> &curve, const QVector<Spline::Knot> &knots)
+void Spline::interpolate(QVector<QPointF> &curve, const QVector<Spline::dot> &dots)
 {
     curve.clear();
 
-    if(knots.size() < 2)
+    if(dots.size() < 2)
     {
         return;
     }
 
-    static const int subdivs = 30;
-    static const qreal uStep = 1.0 / subdivs;
+    const int subdivs = 30;
+    const qreal uStep = 1.0 / subdivs;
 
-    curve.reserve((knots.size()-1)*subdivs + 1);
+    curve.reserve((dots.size()-1)*subdivs + 1);
 
-    for(int k = 0; k < knots.size() - 1; ++k)
+    for(int k = 0; k < dots.size() - 1; ++k)
     {
-        const Knot & prev = k == 0 ? knots[k] : knots[k-1];
-        const Knot & cur = knots[k];
-        const Knot & next = knots[k+1];
-        const Knot & next2 = k + 2 >= knots.size() ? knots[k+1] : knots[k+2];
+        const dot& prev = k == 0 ? dots[k] : dots[k-1];
+        const dot& cur = dots[k];
+        const dot& next = dots[k+1];
+        const dot& next2 = k + 2 >= dots.size() ? dots[k+1] : dots[k+2];
 
-        float t = cur.t;
-        float b = cur.b;
-        float c = cur.c;
-        QPointF d0 = 0.5*(1-t)*((1+b)*(1-c)*(cur - prev) + (1-b)*(1+c)*(next - cur));
-        t = next.t;
-        b = next.b;
-        c = next.c;
-        QPointF d1 = 0.5*(1-t)*((1+b)*(1+c)*(next - cur) + (1-b)*(1-c)*(next2 - next));
+        float tension = cur.tension;
+        float bias = cur.bias;
+        float continuity = cur.continuity;
+        QPointF d0 = 0.5*(1-tension)*((1+bias)*(1-continuity)*(cur - prev) + (1-bias)*(1+continuity)*(next - cur));
+        tension = next.tension;
+        bias = next.bias;
+        continuity = next.continuity;
+        QPointF d1 = 0.5*(1-tension)*((1+bias)*(1+continuity)*(next - cur) + (1-bias)*(1-continuity)*(next2 - next));
 
         qreal u = 0.0;
         for(int subdiv = 0; subdiv < subdivs; ++subdiv)
@@ -124,5 +128,5 @@ void Spline::interpolate(QVector<QPointF> &curve, const QVector<Spline::Knot> &k
         }
     }
 
-    curve.push_back(knots.last());
+    curve.push_back(dots.last());
 }

@@ -42,12 +42,12 @@ void SplineView::setSpline(const Spline &spline)
     update();
 }
 
-void SplineView::updateSelectedKnot(Spline::Knot knot)
+void SplineView::updateSelectedDot(Spline::dot dot)
 {
     if(selectedIndex != -1)
     {
         history.push(spline);
-        spline.replace(selectedIndex, knot);
+        spline.replace(selectedIndex, dot);
         update();
     }
 }
@@ -55,48 +55,42 @@ void SplineView::updateSelectedKnot(Spline::Knot knot)
 void SplineView::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
-    painter.fillRect(rect(), backgroundColor);
+    painter.fillRect(rect(), QColor(32, 32, 32));
 
-    //grid
-    painter.setPen(gridColor);
+    painter.setPen(QColor(128, 128, 128, 64));
     painter.drawLine(rect().center().x(), 0, rect().center().x(), height());
     painter.drawLine(0, rect().center().y(), width(), rect().center().y());
 
-    painter.translate(rect().center());
+    painter.translate(rect().center() + QPoint(horShift, verShift));
+    painter.scale(zoomIndex, zoomIndex);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    //spline
-    QPen pen(splineColor);
+    QPen pen(QColor(182, 219, 73));
     pen.setWidth(2);
     painter.setPen(pen);
     painter.drawPolyline(spline.getCurve());
 
-    //spline knots
-    painter.setBrush(splineColor);
-    for(const Spline::Knot & knot : spline.getKnots())
+    painter.setBrush(QColor(182, 219, 73));
+    for(const Spline::dot & dot : spline.getDots())
     {
-        painter.drawEllipse(knot, 3, 3);
+        painter.drawEllipse(dot, 3, 3);
     }
 
-    //hot knot
     if(hotIndex != -1)
     {
         painter.setBrush(Qt::white);
         pen.setWidth(1);
         painter.setPen(pen);
-        painter.drawEllipse(spline.getKnot(hotIndex), 4, 4);
+        painter.drawEllipse(spline.getDot(hotIndex), 4, 4);
     }
 
-    //selected knot
     if(selectedIndex != -1)
     {
         painter.setBrush(Qt::white);
         pen.setWidth(1);
         painter.setPen(pen);
-        painter.drawEllipse(spline.getKnot(selectedIndex), 6, 6);
+        painter.drawEllipse(spline.getDot(selectedIndex), 6, 6);
     }
-
-    //new knot draft
     if(insertIndex != -1)
     {
         pen.setWidth(1);
@@ -123,22 +117,20 @@ void SplineView::paintEvent(QPaintEvent *)
 void SplineView::mouseMoveEvent(QMouseEvent *event)
 {
     setFocus();
-
-    QPoint pos = event->pos() - rect().center();
-
-    if(movingKnot && hotIndex != -1)
+    QPoint pos = (mapFromGlobal(QCursor::pos()) - QPoint(horShift, verShift) - rect().center()) / zoomIndex;
+    if(movingDot && hotIndex != -1)
     {
-        Spline::Knot knot = spline.getKnot(hotIndex);
-        knot.setX(pos.x());
-        knot.setY(pos.y());
-        spline.replace(hotIndex, knot);
-        emit knotSelected(knot);
+        Spline::dot dot = spline.getDot(hotIndex);
+        dot.setX(pos.x());
+        dot.setY(pos.y());
+        spline.replace(hotIndex, dot);
+        emit dotSelected(dot);
     }
     else
     {
         qreal distance;
         hotIndex = spline.findClosest(pos, distance);
-        if(distance > HOT_KNOT_RADIUS)
+        if(distance > HOT_DOT_RADIUS)
         {
             hotIndex = -1;
         }
@@ -146,10 +138,10 @@ void SplineView::mouseMoveEvent(QMouseEvent *event)
 
     if(event->buttons() & Qt::LeftButton && hotIndex != -1)
     {
-        if(!movingKnot)
+        if(!movingDot)
         {
             history.push(spline);
-            movingKnot = true;
+            movingDot = true;
         }
     }
 
@@ -161,54 +153,101 @@ void SplineView::mouseMoveEvent(QMouseEvent *event)
     update();
 }
 
+void SplineView::wheelEvent(QWheelEvent *event)
+{
+    if (event->orientation() == Qt::Vertical) {
+        const int angle = event->angleDelta().y();
+        if(zoomIndex > 1 || angle > 0)
+        {
+            zoomIndex = zoomIndex + (angle / QWheelEvent::DefaultDeltasPerStep);
+        }
+        update();
+    }
+}
+
+
 void SplineView::mousePressEvent(QMouseEvent *event)
 {
     if(event->buttons() & Qt::LeftButton && insertIndex != -1)
     {
         history.push(spline);
-        spline.insert(insertIndex, Spline::Knot(insertPos));
+        spline.insert(insertIndex, Spline::dot(insertPos));
         deselect();
         update();
     }
     else
-    if(selectedIndex != -1 && hotIndex == -1)
-    {
-        deselect();
+        if(selectedIndex != -1 && hotIndex == -1)
+        {
+            deselect();
+        }
+        else
+            if(event->buttons() & Qt::RightButton && hotIndex != -1)
+            {
+                history.push(spline);
+                spline.remove(hotIndex);
+                hotIndex = -1;
+                update();
+            }
+            else
+                if(event->buttons() & Qt::LeftButton && hotIndex != -1)
+                {
+                    selectedIndex = hotIndex;
+                    emit dotSelected(spline.getDot(selectedIndex));
+                    update();
+                }
+}
+
+void SplineView::mouseReleaseEvent(QMouseEvent *)
+{
+    movingDot = false;
+}
+
+void SplineView::keyPressEvent(QKeyEvent *event)
+{
+    switch (event->key()) {
+    case Qt::Key_Left:
+        horShift = horShift - 10;
+        update();
+        break;
+    case Qt::Key_Right:
+        horShift = horShift + 10;
+        update();
+        break;
+    case Qt::Key_Down:
+        verShift = verShift - 10;
+        update();
+        break;
+    case Qt::Key_Up:
+        verShift = verShift + 10;
+        update();
+        break;
+    case Qt::Key_Home:
+        horShift = 0;
+        verShift = 0;
+        update();
+        break;
+    default:
+        break;
     }
-    else
-    if(event->buttons() & Qt::RightButton && hotIndex != -1)
+
+    if(event->key() & Qt::Key_Delete && hotIndex != -1)
     {
         history.push(spline);
         spline.remove(hotIndex);
         hotIndex = -1;
         update();
     }
-    else
-    if(event->buttons() & Qt::LeftButton && hotIndex != -1)
-    {
-        selectedIndex = hotIndex;
-        emit knotSelected(spline.getKnot(selectedIndex));
-        update();
-    }
-}
 
-void SplineView::mouseReleaseEvent(QMouseEvent *)
-{
-    movingKnot = false;
-}
-
-void SplineView::keyPressEvent(QKeyEvent *event)
-{
     if(event->key() == Qt::Key_Escape)
     {
         deselect();
     }
     else
-    if(event->key() == Qt::Key_Shift)
-    {
-        updateInsertState();
-        update();
-    }
+        if(event->key() == Qt::Key_Shift)
+        {
+            updateInsertState();
+            update();
+        }
 }
 
 void SplineView::keyReleaseEvent(QKeyEvent *event)
@@ -227,13 +266,13 @@ void SplineView::deselect()
         return;
     }
     selectedIndex = -1;
-    emit knotDeselected();
+    emit dotDeselected();
     update();
 }
 
 void SplineView::updateInsertState()
 {
-    insertPos = mapFromGlobal(QCursor::pos()) - rect().center();
+    insertPos = (mapFromGlobal(QCursor::pos()) - QPoint(horShift, verShift) - rect().center()) / zoomIndex;
     if(spline.size() == 0)
     {
         insertIndex = 0;

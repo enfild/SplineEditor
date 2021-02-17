@@ -1,20 +1,13 @@
-#include "MainWindow.h"
-#include "ui_MainWindow.h"
-#include "SplineView.h"
+#include "tcpsplains.h"
+#include "./ui_tcpsplains.h"
 
-#include <QFileDialog>
-#include <QFile>
-#include <QMessageBox>
-#include <QTextStream>
-
-#include <QPushButton>
-
-MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+TCPsplains::TCPsplains(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::TCPsplains)
 {
     ui->setupUi(this);
     ui->controlsHint->setAttribute(Qt::WA_TransparentForMouseEvents);
+    ui->controlsHint->hide();
     ui->paramPanel->hide();
 
     connect(ui->actionUndo, &QAction::triggered, this, [this](){
@@ -37,36 +30,47 @@ MainWindow::MainWindow(QWidget *parent) :
         save();
     });
 
-    connect(ui->actionOpen, &QAction::triggered, this, [this](){
+    connect(ui->actionLoad, &QAction::triggered, this, [this](){
         load();
     });
 
-    connect(ui->splineView, &SplineView::knotSelected, this, [this](Spline::Knot knot){
-        ui->paramPanel->show();
-        ui->xSpinBox->setValue(knot.x());
-        ui->ySpinBox->setValue(knot.y());
-        ui->tensionSpinBox->setValue(knot.t);
-        ui->biasSpinBox->setValue(knot.b);
-        ui->continuitySpinBox->setValue(knot.c);
+    connect(ui->actionInfo, &QAction::triggered, this, [this](){
+        if(ui->controlsHint->isHidden())
+        {
+            ui->controlsHint->show();
+        }
+        else
+        {
+            ui->controlsHint->hide();
+        }
     });
 
-    connect(ui->splineView, &SplineView::knotDeselected, this, [this](){
+    connect(ui->splineView, &SplineView::dotSelected, this, [this](Spline::dot dot){
+        ui->paramPanel->show();
+        ui->xSpinBox->setValue(dot.x());
+        ui->ySpinBox->setValue(dot.y());
+        ui->tensionSpinBox->setValue(dot.tension);
+        ui->biasSpinBox->setValue(dot.bias);
+        ui->continuitySpinBox->setValue(dot.continuity);
+    });
+
+    connect(ui->splineView, &SplineView::dotDeselected, this, [this](){
         ui->paramPanel->hide();
     });
 
-    connect(ui->xSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateKnot()));
-    connect(ui->ySpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateKnot()));
-    connect(ui->tensionSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateKnot()));
-    connect(ui->biasSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateKnot()));
-    connect(ui->continuitySpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateKnot()));
+    connect(ui->xSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateDot()));
+    connect(ui->ySpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateDot()));
+    connect(ui->tensionSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateDot()));
+    connect(ui->biasSpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateDot()));
+    connect(ui->continuitySpinBox, SIGNAL(valueChanged(double)), this, SLOT(updateDot()));
 }
 
-MainWindow::~MainWindow()
+TCPsplains::~TCPsplains()
 {
     delete ui;
 }
 
-void MainWindow::save()
+void TCPsplains::save()
 {
     QString filename = QFileDialog::getSaveFileName(this, QString(), QString(), "Splines (*.spline)");
     if(filename.isEmpty())
@@ -82,18 +86,18 @@ void MainWindow::save()
     }
 
     QTextStream stream(&file);
-    for(const Spline::Knot & knot : ui->splineView->getSpline().getKnots())
+    for(const Spline::dot& dot : ui->splineView->getSpline().getDots())
     {
         QString str;
-        stream << str.sprintf("%6.6f", knot.x()) << " ";
-        stream << str.sprintf("%6.6f", knot.y()) << " ";
-        stream << str.sprintf("%6.6f", knot.t) << " ";
-        stream << str.sprintf("%6.6f", knot.b) << " ";
-        stream << str.sprintf("%6.6f", knot.c) << "\n";
+        stream << QString("%1").arg(dot.x()) << " ";
+        stream << QString("%1").arg(dot.y()) << " ";
+        stream << QString("%1").arg(dot.tension) << " ";
+        stream << QString("%1").arg(dot.bias) << " ";
+        stream << QString("%1").arg(dot.continuity) << "\n";
     }
 }
 
-void MainWindow::load()
+void TCPsplains::load()
 {
     QString filename = QFileDialog::getOpenFileName(this, QString(), QString(), "Splines (*.spline)");
     if(filename.isEmpty())
@@ -115,44 +119,44 @@ void MainWindow::load()
     QString line;
     while( !(line = stream.readLine()).isEmpty() )
     {
-        QStringList knotParams = line.split(" ");
-        if(knotParams.size() != 5)
+        QStringList dotParams = line.split(" ");
+        if(dotParams.size() != 5)
         {
-            QMessageBox::warning(this, tr("File format error"), tr("Wrong number of knot parameters"));
+            QMessageBox::warning(this, tr("File format error"), tr("Wrong number of dot parameters"));
             return;
         }
-        qreal x = knotParams[0].toDouble(&ok);
+        qreal x = dotParams[0].toDouble(&ok);
         if(!ok)
         {
             QMessageBox::warning(this, tr("File format error"), tr("Invalid X parameter"));
             return;
         }
-        qreal y = knotParams[1].toDouble(&ok);
+        qreal y = dotParams[1].toDouble(&ok);
         if(!ok)
         {
             QMessageBox::warning(this, tr("File format error"), tr("Invalid Y parameter"));
             return;
         }
-        float t = knotParams[2].toDouble(&ok);
+        float t = dotParams[2].toDouble(&ok);
         if(!ok)
         {
             QMessageBox::warning(this, tr("File format error"), tr("Invalid tension parameter"));
             return;
         }
-        float b = knotParams[3].toDouble(&ok);
+        float b = dotParams[3].toDouble(&ok);
         if(!ok)
         {
             QMessageBox::warning(this, tr("File format error"), tr("Invalid bias parameter"));
             return;
         }
-        float c = knotParams[4].toDouble(&ok);
+        float c = dotParams[4].toDouble(&ok);
         if(!ok)
         {
             QMessageBox::warning(this, tr("File format error"), tr("Invalid continuity parameter"));
             return;
         }
 
-        spline.add(Spline::Knot(x, y, t, b, c));
+        spline.add(Spline::dot(x, y, t, b, c));
     }
 
     if(stream.status() != QTextStream::Ok)
@@ -164,12 +168,13 @@ void MainWindow::load()
     ui->splineView->setSpline(spline);
 }
 
-void MainWindow::updateKnot()
+void TCPsplains::updateDot()
 {
-    Spline::Knot knot(ui->xSpinBox->value(),
+    Spline::dot dot(ui->xSpinBox->value(),
                       ui->ySpinBox->value(),
                       ui->tensionSpinBox->value(),
                       ui->biasSpinBox->value(),
                       ui->continuitySpinBox->value());
-    ui->splineView->updateSelectedKnot(knot);
+    ui->splineView->updateSelectedDot(dot);
 }
+
